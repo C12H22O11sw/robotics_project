@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import glob
-import matplotlib.pyplot as plt
 
 class Directions:
         x = np.array([1, 0, 0])
@@ -25,7 +24,7 @@ class Block:
     
     """
     
-    def __init__(self, size:float, markerOrientation: dict[int: [np.ndarray, np.ndarray]]):
+    def __init__(self, size, markerOrientation):
                 
         self.objectPoints = dict()
         for markerID, orientation in markerOrientation.items():
@@ -40,7 +39,7 @@ class Block:
             self.objectPoints[markerID] = objectPoints      
 
 
-def getHomogenousTransformsMatricies(image, cameraMatrix, blocks, arucoDict=cv2.aruco.DICT_4X4_1000):
+def getRpfromImage(image, cameraMatrix, blocks, arucoDict=cv2.aruco.DICT_4X4_1000):
     """Find the homogenous transform matricies from the camera to each block
     
     image: an image containing blocks
@@ -53,7 +52,7 @@ def getHomogenousTransformsMatricies(image, cameraMatrix, blocks, arucoDict=cv2.
     arucoParams = cv2.aruco.DetectorParameters_create()
     (corners, ids, rejected) = cv2.aruco.detectMarkers(image, arucoDict, parameters=arucoParams)
 
-    corners_dict = dict()
+    imagePoints = dict()
 
     if len(corners) > 0:
 
@@ -62,32 +61,90 @@ def getHomogenousTransformsMatricies(image, cameraMatrix, blocks, arucoDict=cv2.
         for (markerCorner, markerID) in zip(corners, ids):
 
             print(f"[INFO] ArUco marker ID: {markerID}")
-            corners_dict[markerID] = markerCorner.reshape((4, 2))
+            imagePoints[markerID] = markerCorner.reshape((4, 2))
 
     else:
         print("Warning: No corners found.")
 
 
-    homogenousTransformsMatricies = dict()
-    for block in [block1]:
+    R = dict()
+    p = dict()
+    for block in blocks:
         X = []
         y = []
         for markerID in block.objectPoints:
 
-            if markerID not in corners_dict:
+            if markerID not in imagePoints:
                 continue
 
             X.append(block.objectPoints[markerID])
-            y.append(corners_dict[markerID])
+            y.append(imagePoints[markerID])
 
-        X = np.concatenate(X)  # TODO: write better names for X, y (and corners_dict)
+        if len(X) == 0:
+            continue
+
+        X = np.concatenate(X)  # TODO: write better names for X, y
         y = np.concatenate(y)
         
-        ret, rvecs, t = cv2.solvePnP(X, y, cameraMatrix, None)
+        ret, rvecs, tvecs = cv2.solvePnP(X, y, cameraMatrix, None)
 
-        R, _ = cv2.Rodrigues(rvecs)
-        H = np.concatenate([R, t], axis=1)
+        R[block], _ = cv2.Rodrigues(rvecs)
+        p[block] = tvecs
         
-        homogenousTransformsMatricies[block] = H
-        
-    return homogenousTransformsMatricies
+    return R, p
+
+
+if __name__ == "__main__":
+
+    print("hoping to detect a block")
+
+
+    block1 = Block(0.03, { 0: [ Directions.z,  Directions.y],
+			               1: [-Directions.z, -Directions.x],
+                           2: [ Directions.x,  Directions.y],
+                           3: [-Directions.y,  Directions.x],
+                           4: [-Directions.x, -Directions.y],
+                           5: [ Directions.y, -Directions.x]})
+
+    block2 = Block(0.03, { 6: [ Directions.z,  Directions.y],
+			               7: [-Directions.z, -Directions.x],
+                           8: [ Directions.x,  Directions.y],
+                           9: [-Directions.y,  Directions.x],
+                          10:[-Directions.x, -Directions.y],
+                          11:[ Directions.y, -Directions.x]})
+
+    block3 = Block(0.03, {12:[ Directions.z,  Directions.y],
+			              13:[-Directions.z, -Directions.x],
+                          14:[ Directions.x,  Directions.y],
+                          15:[-Directions.y,  Directions.x],
+                          16:[-Directions.x, -Directions.y],
+                          17:[ Directions.y, -Directions.x]})
+
+    block4 = Block(0.03, {18:[ Directions.z,  Directions.y],
+                          19:[-Directions.z, -Directions.x],
+                          20:[ Directions.x,  Directions.y],
+                          21:[-Directions.y,  Directions.x],
+                          22:[-Directions.x, -Directions.y],
+                          23:[ Directions.y, -Directions.x]})
+
+    blocks = [block1, block2, block3, block4]
+
+
+
+    cameraMatrix = np.array([[ 9.551e3, 0, 4.085e2],
+                             [ 0, 1.209e4, -6.502 ],
+                             [ 0, 0, 1 ]])
+
+    # find camera port
+    for port in range(10):
+        camera = cv2.VideoCapture(port)
+        ret, image = camera.read()
+        if ret:
+            break
+
+
+    R, p = getRpfromImage(image, cameraMatrix, blocks)
+    print(R)
+    print(p)
+
+    
