@@ -110,7 +110,8 @@ def updateBlockPositions(image, blocks, robot, q, cameraMatrix=None, T_camera=No
         p_camera = np.array([[0.0640], [0], [-0.0481]])
         T_camera = rox.Transform(R_camera, p_camera)
 
-    q = list(map(lambda x: x * np.pi/180, q))
+    q_fwd = list(map(lambda x: x * np.pi/180, q))
+	q_fwd[-1] = 0
 
     T_tool = rox.fwdkin(robot, q)
 
